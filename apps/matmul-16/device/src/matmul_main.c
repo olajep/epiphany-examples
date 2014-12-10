@@ -127,16 +127,17 @@ void init()
 	// Wait for the DMA engine to be idle
 	e_dma_wait(E_DMA_0);
 	// Tehen, prepare the DMA descriptors
-	dma_desc[0].config       = E_DMA_MSGMODE | E_DMA_DWORD | E_DMA_MASTER | E_DMA_ENABLE;
-	dma_desc[0].inner_stride = (0x0008 << 16) | 0x0008;
-	dma_desc[0].count        = (_Score << 16) | (_Score >> 1);
-	dma_desc[0].outer_stride = (0x0008 << 16) | (((_Smtx - _Score) * sizeof(float)) + 0x0008);
+	dma_desc[0].config       = E_DMA_MSGMODE | E_DMA_WORD | E_DMA_MASTER | E_DMA_ENABLE;
+	dma_desc[0].inner_stride = (0x0004 << 16) | 0x0004;
+	dma_desc[0].count        = (_Score << 16) | (_Score );
+	dma_desc[0].outer_stride = (0x0004 << 16) | (((_Smtx - _Score) * sizeof(float)) + 0x0004);
 
 	// Duplicate descriptor twice and make necessary corrections for outer strides
 	dma_desc[1] = dma_desc[0];
-	dma_desc[1].outer_stride = (0x0008 << 16) | 0x0008;
+	dma_desc[1].outer_stride = (0x0004 << 16) | 0x0004;
 	dma_desc[2] = dma_desc[0];
-	dma_desc[2].outer_stride = ((((_Smtx - _Score) * sizeof(float)) + 0x0008) << 16) | 0x0008;
+	dma_desc[2].config       = E_DMA_MSGMODE | E_DMA_WORD | E_DMA_MASTER | E_DMA_ENABLE;
+	dma_desc[2].outer_stride = ((((_Smtx - _Score) * sizeof(float)) + 0x0004) << 16) | 0x0004;
 
 	// Clear the inter-core DMA sync signals
 	e_mutex_init(0, 0, &mutex, MUTEXATTR_NULL);

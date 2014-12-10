@@ -138,9 +138,14 @@ int main(int argc, char *argv[])
 
 	printf("Loading program on Epiphany chip...\n");
 	e_set_loader_verbosity(ar.verbose);
-	result = e_load_group(ar.srecFile, pEpiphany, ar.row, 0, 4, 4, ar.run_target);
+	result = e_load_group(ar.srecFile, pEpiphany, ar.row, 0, 4, 4, E_FALSE);
 	if (result == E_ERR) {
 		fprintf(stderr, "Error loading Epiphany program.\n");
+		exit(1);
+	}
+	result = e_start_group(pEpiphany);
+	if (result != E_OK) {
+		fprintf(stderr, "Error starting Epiphany program.\n");
 		exit(1);
 	}
 
@@ -172,7 +177,7 @@ int main(int argc, char *argv[])
 
 
 	// Call the Epiphany matmul() function
-	printf( "GO Epiphany! ...   ");
+	printf( "GO Epiphany! ...\n");
 //	gettimeofday(&timer[0], NULL);
 	matmul_go(pDRAM);
 //	gettimeofday(&timer[1], NULL);
