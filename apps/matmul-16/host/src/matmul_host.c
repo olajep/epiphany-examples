@@ -81,7 +81,7 @@ float Cref[_Smtx * _Smtx];
 float Cdiff[_Smtx * _Smtx];
 
 typedef struct timeval timeval_t;
-timeval_t timer[4];
+timeval_t timer[16];
 
 extern e_platform_t e_platform;
 
@@ -91,9 +91,10 @@ int main(int argc, char *argv[])
 	e_mem_t      DRAM,     *pDRAM;
 	unsigned int msize;
 	float        seed;
-	unsigned int addr; //, clocks;
-	size_t       sz;
-	double       tdiff[2];
+	unsigned int addr, clocks[_Ncores*6];
+	size_t       sz, offs;
+	int i, j;
+	double       tdiff[8];
 	int          result, rerval;
 
 
@@ -170,12 +171,13 @@ int main(int argc, char *argv[])
 	printf( "Writing B[%uB] to address %08x...\n", sz, addr);
 	e_write(pDRAM, 0, 0, addr, (void *) Mailbox.B, sz);
 
+	gettimeofday(&timer[1], NULL);
+
 
 	// Call the Epiphany matmul() function
 	printf( "GO Epiphany! ...   ");
-//	gettimeofday(&timer[0], NULL);
 	matmul_go(pDRAM);
-//	gettimeofday(&timer[1], NULL);
+	gettimeofday(&timer[2], NULL);
 	printf( "Finished calculating Epiphany result.\n");
 
 
@@ -185,25 +187,25 @@ int main(int argc, char *argv[])
 	printf( "Reading result from address %08x...\n", addr);
 	e_read(pDRAM, 0, 0, addr, (void *) Mailbox.C, sz);
 
-	gettimeofday(&timer[1], NULL);
+	gettimeofday(&timer[3], NULL);
 
 
 	// Calculate a reference result
 	printf( "Calculating result on Host ...   ");
-	gettimeofday(&timer[2], NULL);
+	gettimeofday(&timer[14], NULL);
 #ifndef __DO_STRASSEN__
 	matmul(Mailbox.A, Mailbox.B, Cref, _Smtx);
 #else
 	matmul_strassen(Mailbox.A, Mailbox.B, Cref, _Smtx);
 #endif
-	gettimeofday(&timer[3], NULL);
+	gettimeofday(&timer[15], NULL);
 	printf( "Finished calculating Host result.\n");
 
 
 	addr = offsetof(shared_buf_t, core.clocks);
 	sz = sizeof(Mailbox.core.clocks);
 	printf( "Reading time from address %08x...\n", addr);
-	e_read(pDRAM,0, 0, addr, &Mailbox.core.clocks, sizeof(Mailbox.core.clocks));
+	e_read(pDRAM,0, 0, addr, (void *) &clocks, sizeof(Mailbox.core.clocks));
 //	clocks = Mailbox.core.clocks;
 
 
@@ -215,9 +217,12 @@ int main(int argc, char *argv[])
 	printf( "Verifying result correctness ...   ");
 	matsub(Mailbox.C, Cref, Cdiff, _Smtx);
 
-	tdiff[0] = (timer[1].tv_sec - timer[0].tv_sec) * 1000 + ((double) (timer[1].tv_usec - timer[0].tv_usec) / 1000.0);
-//	tdiff[0] = ((double) clocks) / eMHz * 1000;
-	tdiff[1] = (timer[3].tv_sec - timer[2].tv_sec) * 1000 + ((double) (timer[3].tv_usec - timer[2].tv_usec) / 1000.0);
+	tdiff[0] = (timer[3].tv_sec - timer[0].tv_sec) * 1000 + ((double) (timer[3].tv_usec - timer[0].tv_usec) / 1000.0);
+	tdiff[1] = (timer[1].tv_sec - timer[0].tv_sec) * 1000 + ((double) (timer[1].tv_usec - timer[0].tv_usec) / 1000.0);
+	tdiff[2] = (timer[2].tv_sec - timer[1].tv_sec) * 1000 + ((double) (timer[2].tv_usec - timer[1].tv_usec) / 1000.0);
+	tdiff[3] = (timer[3].tv_sec - timer[2].tv_sec) * 1000 + ((double) (timer[3].tv_usec - timer[2].tv_usec) / 1000.0);
+	//tdiff[0] = ((double) clocks[3]); // / eMHz * 1000;
+	tdiff[7] = (timer[15].tv_sec - timer[14].tv_sec) * 1000 + ((double) (timer[15].tv_usec - timer[14].tv_usec) / 1000.0);
 
 
 	// If the difference is 0, then the matrices are identical and the
@@ -226,12 +231,31 @@ int main(int argc, char *argv[])
 	  {
 	    printf( "C_epiphany == C_host\n");
 	    printf( "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n");
-	    printf( "Epiphany -  time: %9.1f msec  (@ %03d MHz)\n", tdiff[0], eMHz);
-	    printf( "Host     -  time: %9.1f msec  (@ %03d MHz)\n", tdiff[1], aMHz);
+	    printf( "Epiphany - full time:             %9.1f msec  (@ %03d MHz)\n", tdiff[0], eMHz);
+	    printf( "Epiphany - Copy operand matrices: %9.1f msec  (@ %03d MHz)\n", tdiff[1], eMHz);
+	    printf( "Epiphany - Epiphany execution:    %9.1f msec  (@ %03d MHz)\n", tdiff[2], eMHz);
+	    printf( "Epiphany - Read back result:      %9.1f msec  (@ %03d MHz)\n", tdiff[3], eMHz);
+	    printf( "Host     - full time:             %9.1f msec  (@ %03d MHz)\n", tdiff[7], aMHz);
 	    printf( "\n* * *   EPIPHANY FTW !!!   * * *\n");
 	    printf( "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n");
 	    printf( "GOOD: TEST PASSED\n");
 	    printf( "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n");
+
+
+	    for (i=0, offs=0; i < _Ncores; i++, offs += 6) {
+		    printf( "Core %02d:\n", i );
+		    printf( "init()      clocks: %u\n", clocks[offs+0] );
+		    printf( "1st barrier clocks: %u\n", clocks[offs+1] );
+		    printf( "ready flag  clocks: %u\n", clocks[offs+2] );
+		    printf( "2nd barrier clocks: %u\n", clocks[offs+3] );
+		    printf( "bigmatmul() clocks: %u\n", clocks[offs+4] );
+		    printf( "3d barrier  clocks: %u\n", clocks[offs+5] );
+		    printf( "total clocks:       %u\n",
+				    clocks[offs+5]+clocks[offs+4]+
+				    clocks[offs+3]+clocks[offs+2]+
+				    clocks[offs+1]+clocks[offs+0] );
+		    printf( "====================================\n");
+	    }
 	    rerval = 0;
 	} else {
 	  printf( "\n\nERROR: C_epiphany is different from C_host !!!\n");
@@ -253,7 +277,6 @@ int main(int argc, char *argv[])
 	printf( "Cref[][] = \n");
 	matprt(Cref, _Smtx);
 
-	int i, j;
 	for (i=0; i<_Nside; i++)
 		for (j=0; j<_Nside; j++)
 		{
@@ -731,9 +754,9 @@ void matmul_strassen(volatile float * a, volatile float * b, volatile float * c,
     	}
 
 	LEAF_SIZE = 32;
-	gettimeofday(&timer[2], NULL);
+	//gettimeofday(&timer[2], NULL);
 	strassen(as, bs, cs, NN, LEAF_SIZE);
-	gettimeofday(&timer[3], NULL);
+	//gettimeofday(&timer[3], NULL);
 
     for (i=0; i<NN; i++)
     	for (j=0; j<NN; j++)

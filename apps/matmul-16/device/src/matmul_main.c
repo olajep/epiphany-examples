@@ -27,6 +27,7 @@
 //
 // Aug-2013, YS.
 
+#include <e_ctimers.h>
 
 #include "matlib.h"
 #include "matmul.h"
@@ -34,23 +35,45 @@
 #include "static_buffers.h"
 #include "common_buffers.h"
 
+
 void bigmatmul();
 void init();
 void data_copy(e_dma_desc_t *dma_desc, void *dst, void *src);
+inline unsigned wallclock(e_ctimer_id_t timer);
 
+inline unsigned wallclock(e_ctimer_id_t timer)
+{
+	unsigned val;
+
+	val = E_CTIMER_MAX - e_ctimer_get(timer);
+	e_ctimer_set(timer, E_CTIMER_MAX);
+	e_ctimer_stop(timer);
+	e_ctimer_start(timer, E_CTIMER_CLK);
+
+	return val;
+}
 
 int main(int argc, char *argv[])
 {
 	int status;
+	unsigned clocks[6];
+	size_t offs;
 
 	status = 0;
+
+	// Start timer
+	wallclock(E_CTIMER_1);
 
 	// Initialize data structures - mainly target pointers
 	init();
 
+	clocks[0] = wallclock(E_CTIMER_1);
+
 	// Initialize the barriers
 	e_barrier_init(barriers, tgt_bars);
-	
+
+	clocks[1] = wallclock(E_CTIMER_1);
+
 	do {
 		if (me.corenum == 0)
 		{
@@ -63,16 +86,35 @@ int main(int argc, char *argv[])
 			Mailbox.pCore->ready = 0;
 		}
 
+		clocks[2] = wallclock(E_CTIMER_1);
+
 		// Sync with all other cores
 		e_barrier(barriers, tgt_bars);
+
+		clocks[3] = wallclock(E_CTIMER_1);
+
 
 		// Calculate. During this time, the host polls the
 		// shared mailbox, waiting for a falling edge that
 		// indicates the end of the calculation.
 		bigmatmul();
 
+		clocks[4] = wallclock(E_CTIMER_1);
+
 		// Sync with all other cores
 		e_barrier(barriers, tgt_bars);
+
+		clocks[5] = wallclock(E_CTIMER_1);
+		e_ctimer_stop(E_CTIMER_1);
+
+		offs = me.corenum * 6;
+		Mailbox.pCore->clocks[offs+0] = clocks[0];
+		Mailbox.pCore->clocks[offs+1] = clocks[1];
+		Mailbox.pCore->clocks[offs+2] = clocks[2];
+		Mailbox.pCore->clocks[offs+3] = clocks[3];
+		Mailbox.pCore->clocks[offs+4] = clocks[4];
+		Mailbox.pCore->clocks[offs+5] = clocks[5];
+
 
 		if (me.corenum == 0)
 		{

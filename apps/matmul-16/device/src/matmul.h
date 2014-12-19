@@ -67,7 +67,7 @@ typedef struct {
 typedef struct {
 	int      go;     // Call for matmul function
 	int      ready;  // Core is ready after reset
-	int      clocks; // Cycle count
+	unsigned clocks[_Ncores*6]; // 6 * Cycle count per core
 } mbox_t;
 
 
