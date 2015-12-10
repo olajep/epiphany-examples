@@ -27,6 +27,7 @@
 //
 // Aug-2013, YS.
 
+#include <e-lib.h>
 
 #include "matlib.h"
 #include "matmul.h"
@@ -41,12 +42,17 @@ void data_copy(e_dma_desc_t *dma_desc, void *dst, void *src);
 
 int main(int argc, char *argv[])
 {
-	int status;
+	uint32_t clocks;
 
-	status = 0;
+	e_ctimer_set(E_CTIMER_0, E_CTIMER_MAX);;
+	e_ctimer_start(E_CTIMER_0, E_CTIMER_CLK);;
 
 	// Initialize data structures - mainly target pointers
 	init();
+
+	/* Only need from core0 */
+	if (me.corenum != 0)
+		e_ctimer_stop(E_CTIMER_0);
 
 	// Init the host-accelerator sync signals
 	if (me.corenum == 0)
@@ -74,12 +80,17 @@ int main(int argc, char *argv[])
 	// Sync with all other cores
 	e_barrier(barriers, tgt_bars);
 
+	if (me.corenum == 0)
+		clocks = E_CTIMER_MAX - e_ctimer_stop(E_CTIMER_0);
+
 	if (me.corenum == 0) {
+		Mailbox.pCore->clocks = clocks;
+
 		// Signal End-Of-Calculation to the host.
 		Mailbox.pCore->done = 1;
 	}
 
-	return status;
+	return 0;
 }
 
 

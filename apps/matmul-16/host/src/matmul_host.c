@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 	e_mem_t      DRAM,     *pDRAM;
 	unsigned int msize;
 	float        seed;
-	unsigned int addr; //, clocks;
+	unsigned int addr, clocks;
 	size_t       sz;
 	int          verbose=0;
 	double       tdiff[3];
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
 	  printf( "Reading time from address %08x...\n", addr);
 	}
 	e_read(pDRAM,0, 0, addr, &Mailbox.core.clocks, sizeof(Mailbox.core.clocks));
-//	clocks = Mailbox.core.clocks;
+	clocks = Mailbox.core.clocks;
 
 
 
@@ -235,6 +235,7 @@ int main(int argc, char *argv[])
 	  {
 
 	    printf( "Epiphany(time) %9.1f msec  (@ %03d MHz)\n", tdiff[0], eMHz);
+	    printf( "Epiphany core (clocks) %u clocks (@ %03d MHz)\n", clocks, eMHz);
 	    printf( "Host(time)     %9.1f msec  (@ %03d MHz)\n", tdiff[1], aMHz);
 	    printf( "------------------------------------------------------------\n");
 	    printf( "TEST \"matmul-16\" PASSED\n");
