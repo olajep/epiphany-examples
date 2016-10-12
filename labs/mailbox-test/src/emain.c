@@ -25,6 +25,18 @@ void e_send_message(uint32_t data)
 		: "memory");
 }
 
+/* access external ram to create some interleavings between queues in FPGA
+ * elink */
+int make_some_noise()
+{
+    volatile uint32_t *foo = (uint32_t *) 0x8f100000;
+
+    while (true)
+        *foo += 5;
+
+    return 0;
+}
+
 int main()
 {
 	volatile uint32_t *step = (uint32_t *) STEP_ADDR;
@@ -34,6 +46,11 @@ int main()
 	//uint32_t foo = *foop;
 	uint32_t foo = 0;
 	uint32_t prev_step = 0;
+
+
+    // create som elink traffic
+    if (e_get_coreid() != 0x808)
+        return make_some_noise();
 
 	int i;
 

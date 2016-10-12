@@ -95,12 +95,13 @@ int main(int argc, char *argv[])
 	e_open(&dev, 0, 0, rows, cols);
 
 	//load the device program on the board
-	e_load_group("emain.elf", &dev, 0, 0, 1, 1, E_FALSE);
+	e_load_group("emain.elf", &dev, 0, 0, 1, 2, E_FALSE);
 
 
 	e_write(&dev, 0, 0, STOP_ADDR, &zero, sizeof(zero));
 	e_write(&dev, 0, 0, STEP_ADDR, &zero, sizeof(zero));
 
+	e_start(&dev, 0, 1);
 	e_start(&dev, 0, 0);
 
 	/* Test blocking wait with interrupts */
